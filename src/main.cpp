@@ -1,22 +1,28 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <receiver.cpp>
+#include <Receiver.cpp>
+#include <RCHandler.cpp>
+
+BluetoothSerial btMonitor;
+RCHandler mRCHandler;
 
 void setup() {
-  Wire.begin();
-  Serial.begin(9600);
-  receiver mReceiver(0x64, 19);
-  if (mReceiver.sendPatch() == 0) {
-      mReceiver.loadFlash();
-      mReceiver.boot();
-      mReceiver.getPartInfo();
-      mReceiver.getBootStatus();
-  } else {
-    Serial.println("Kon geen verbinding maken met DAB-chip");
-  }
+    Wire.begin();
+    Serial.begin(9600);
+    btMonitor.begin("DAB_RADIO");
+    mRCHandler.subscribeTo(&btMonitor);
+    Receiver mReceiver(0x64, 19);
+    if (mReceiver.sendPatch() == 0) {
+        mReceiver.loadFlash();
+        mReceiver.boot();
+        mReceiver.getPartInfo();
+        mReceiver.getBootStatus();
+    } else {
+      Serial.println("Kon geen verbinding maken met DAB-chip");
+    }
 }
 
 void loop() {
-    Serial.write("Done");
-    delay(100000);
+    mRCHandler.send("Hello World!");
+    delay(10000);
 }
