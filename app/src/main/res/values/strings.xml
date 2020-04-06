@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">DAB Radio</string>
+    <string name="standard_title">I don\'t want to set the world on fire</string>
+    <string name="standard_artist">The Ink Spots</string>
+    <string name="standard_station">Fallout Classics</string>
+    <string name="currently_playing">Currently playing</string>
+</resources>
