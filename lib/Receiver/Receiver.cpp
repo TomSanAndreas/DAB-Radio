@@ -7,7 +7,8 @@ class Receiver {
     private:
         int addr;
         int readStatus(int, bool);
-        int wait(int, bool);
+        // int wait(int, bool); // deprecated, is nu waitForCTS
+        void waitForCTS();
     public:
         Receiver(int addr, int resetpin);
         int sendPatch();
@@ -40,14 +41,17 @@ Receiver::Receiver(int addr, int resetpin) {
     Serial.println("[BOOT] Beginnen met booten in 1s");
     pinMode(resetpin, OUTPUT);
     digitalWrite(resetpin, HIGH);
-    delay(1000);
+    // delay(1000);
+    waitForCTS();
     Serial.println("[BOOT] Resetting...");
     digitalWrite(resetpin, LOW);
     delay(1000);
+    // waitForCTS();
 
     Serial.println("[DEBUG] Controlleren van apparaat status");
     digitalWrite(resetpin, HIGH);
-    delay(5);
+    // delay(5);
+    waitForCTS();
 
     //wait(4, true);
     //getBootStatus();
@@ -59,6 +63,7 @@ Receiver::Receiver(int addr, int resetpin) {
         //delay(50);
         //wait(4, true);
         //readStatus(4, true);
+        waitForCTS();
     }
     else {
         Serial.print("Geen i²c component gevonden op adres ");
@@ -76,6 +81,7 @@ int Receiver::sendPatch() {
         //this->wait(4, true);
         //delayMicroseconds(20);
         Serial.println("[BOOT] Apparaat voorbereiden om de patch te verzenden");
+        waitForCTS();
         //readStatus(4, true);
         float bytesSent = 0.0; // procentuele weergave -> float
         int numberOfBytes = firmware_rom00_patch_016_bin_len;
@@ -103,6 +109,8 @@ int Receiver::sendPatch() {
             Wire.endTransmission();
             Serial.print(bytesSent/numberOfBytes*100);
             Serial.print("%\t");
+            delay(4); // 50 ms tussen verschillende stukken patch zodat er op de CTS kan worden gewacht
+            waitForCTS();
             //delay(50);
             //readStatus(4, true);
             //delayMicroseconds(20);
@@ -118,9 +126,10 @@ int Receiver::sendPatch() {
         Serial.print("\n[BOOT] Sending patch: ");
         Serial.print(bytesSent/numberOfBytes*100);
         Serial.println("% sent.");
+        delay(4);
+        waitForCTS();
         //delay(500);
         //this->wait(4, true);
-        delay(4);
         //readStatus(4, true);
         return 0;
     } else {
@@ -137,6 +146,8 @@ void Receiver::loadFlash() {
     Wire.beginTransmission(addr);
     Wire.write(sequence, 2);
     Wire.endTransmission();
+    delay(1);
+    waitForCTS();
     //delay(50);
     //this->wait(4, true);
     uint8_t flashSequence[12];
@@ -155,8 +166,42 @@ void Receiver::loadFlash() {
     Wire.write(flashSequence, 12);
     Serial.println("[BOOT] Doorgeven van het DAB-flash adres");
     Wire.endTransmission();
+    delay(1000);
+    waitForCTS();
     //Serial.println("[BOOT] Starten met het inlezen van het DAB-flash adres");
     //delay(5000);
+    //this->wait(4, true);
+    //readStatus(4, true);
+}
+
+void Receiver::boot() {
+    uint8_t sequence[2];
+    sequence[0] = SI46XX_BOOT;
+    sequence[1] = 0x00;
+    Wire.beginTransmission(addr);
+    Wire.write(sequence, 2);
+    Serial.println("[BOOT] DAB-Receiver opstarten...");
+    Wire.endTransmission();
+    delay(300);
+    // waitForCTS();
+
+    bool ready = false;
+    while (!ready) {
+        Wire.beginTransmission(addr);
+        Wire.write(SI46XX_RD_REPLY);
+        Wire.endTransmission();
+        Wire.requestFrom(addr, 4);
+        uint8_t resultByte = Wire.read(); // bevat de CTS bit
+        Wire.read(); // niet-gebruikte 2e byte
+        Wire.read(); // niet-gebruikte 3e byte
+        ready = (0x80 & resultByte) == 0x80; // controleren of CTS gezet is
+        if (!ready) {
+            Wire.read(); // niet-gebruikte 4e byte
+        } else { 
+            Serial.println(Wire.read(), HEX);
+        }
+    }
+
     //this->wait(4, true);
     //readStatus(4, true);
 }
@@ -233,46 +278,49 @@ void Receiver::getPartInfo() {
     Serial.println(partnumber);
 }
 
-void Receiver::boot() {
-    uint8_t sequence[2];
-    sequence[0] = SI46XX_BOOT;
-    sequence[1] = 0x00;
-    Wire.write(sequence, 2);
-    Serial.println("[BOOT] DAB-Receiver opstarten...");
-    Wire.endTransmission();
-    //delay(300);
-    //this->wait(4, true);
-    //readStatus(4, true);
-}
-
-int Receiver::wait(int nStatusBytes, bool checkForError) {
-    Wire.beginTransmission(addr);
-    Wire.write(SI46XX_RD_REPLY);
-    delay(50); // eerste vertraging
-    int iteratie = 0;
-    int status;
-    if (!Wire.endTransmission()) { // controlleren of er een i²c component op dit adres zit
-        status = readStatus(nStatusBytes, checkForError);
-        while (status == -1) {
-            ++iteratie;
-            if (checkForError) {
-                Serial.print("[DEBUG] CTS was 0, wachten met verdergaan (");
-                Serial.print(iteratie);
-                Serial.println(")");
-            }
-            delay(250);
-            Wire.beginTransmission(addr);
-            Wire.write(SI46XX_RD_REPLY);
-            Wire.endTransmission();
-            status = readStatus(nStatusBytes, checkForError);
-        }
-        return status;
-    } else {
-        Serial.print("Geen i²c component gevonden op adres ");
-        Serial.println(addr, HEX);
-        return -1;
+void Receiver::waitForCTS() {
+    bool ready = false;
+    while (!ready) {
+        Wire.beginTransmission(addr);
+        Wire.write(SI46XX_RD_REPLY);
+        Wire.endTransmission();
+        Wire.requestFrom(addr, 4);
+        uint8_t resultByte = Wire.read(); // bevat de CTS bit
+        Wire.read(); // niet-gebruikte 2e byte
+        Wire.read(); // niet-gebruikte 3e byte
+        Wire.read(); // niet-gebruikte 4e byte
+        ready = (0x80 & resultByte) == 0x80; // controleren of CTS gezet is
     }
 }
+
+// int Receiver::wait(int nStatusBytes, bool checkForError) {
+//     Wire.beginTransmission(addr);
+//     Wire.write(SI46XX_RD_REPLY);
+//     delay(50); // eerste vertraging
+//     int iteratie = 0;
+//     int status;
+//     if (!Wire.endTransmission()) { // controlleren of er een i²c component op dit adres zit
+//         status = readStatus(nStatusBytes, checkForError);
+//         while (status == -1) {
+//             ++iteratie;
+//             if (checkForError) {
+//                 Serial.print("[DEBUG] CTS was 0, wachten met verdergaan (");
+//                 Serial.print(iteratie);
+//                 Serial.println(")");
+//             }
+//             delay(250);
+//             Wire.beginTransmission(addr);
+//             Wire.write(SI46XX_RD_REPLY);
+//             Wire.endTransmission();
+//             status = readStatus(nStatusBytes, checkForError);
+//         }
+//         return status;
+//     } else {
+//         Serial.print("Geen i²c component gevonden op adres ");
+//         Serial.println(addr, HEX);
+//         return -1;
+//     }
+// }
 
 int Receiver::readStatus(int nStatusBytes, bool CheckForErrors) {
     delay(50); // eerste vertraging

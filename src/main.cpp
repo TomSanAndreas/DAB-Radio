@@ -18,8 +18,8 @@ void setup() {
     if (mReceiver.sendPatch() == 0) {
         mReceiver.loadFlash();
         mReceiver.boot();
-        mReceiver.getPartInfo();
-        mReceiver.getBootStatus();
+        //mReceiver.getPartInfo();
+        //mReceiver.getBootStatus();
     } else {
       Serial.println("Kon geen verbinding maken met DAB-chip");
     }
