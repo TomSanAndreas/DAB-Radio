@@ -37,9 +37,9 @@ void loop() {
     //volcheck();
     lcd.print(Volume);
     /*
-    delay(1000);
-    lcd.clear();
-    lcd.print(kannaal[channelcounter]);
+      delay(1000);
+      lcd.clear();
+      lcd.print(kannaal[channelcounter]);
     */
     //lcd.setCursor(0, 1);
     //lcd.print(song);
@@ -48,8 +48,10 @@ void loop() {
 }
 
 void volume() {
+  if (!afterVolInterrupt) {
     volloop();
-  afterVolInterrupt = true;
+    afterVolInterrupt = true;
+  }
 }
 
 
