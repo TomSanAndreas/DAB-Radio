@@ -26,8 +26,8 @@ void setup() {
   lcd.print(kannaal[channelcounter]);
   lcd.setCursor(0, 1);
   lcd.print(song);
-  attachInterrupt(digitalPinToInterrupt(32), volume, CHANGE);
-  //attachInterrupt(digitalPinToInterrupt(25), volume, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(32), volume, RISING);
+  //attachInterrupt(digitalPinToInterrupt(25), volume, RISING);
 }
 
 void loop() {
