@@ -20,20 +20,20 @@ void setup() {
   lcd.begin(16, 2);
   lcd.print("Welkom");
   pinMode(32, INPUT);
-  attachInterrupt(digitalPinToInterrupt(32), volume, CHANGE);
   pinMode(25, INPUT);
-  //attachInterrupt(digitalPinToInterrupt(25), volume, CHANGE);
   delay(2000);
   lcd.clear();
   lcd.print(kannaal[channelcounter]);
   lcd.setCursor(0, 1);
   lcd.print(song);
+  attachInterrupt(digitalPinToInterrupt(32), volume, CHANGE);
+  //attachInterrupt(digitalPinToInterrupt(25), volume, CHANGE);
 }
 
 void loop() {
   if (afterVolInterrupt) {
     lcd.clear();
-    lcd.print("Volume ");
+    //lcd.print("Volume ");
     //volcheck();
     lcd.print(Volume);
     /*
@@ -41,8 +41,8 @@ void loop() {
     lcd.clear();
     lcd.print(kannaal[channelcounter]);
     */
-    lcd.setCursor(0, 1);
-    lcd.print(song);
+    //lcd.setCursor(0, 1);
+    //lcd.print(song);
     afterVolInterrupt = false;
   }
 }
@@ -58,9 +58,9 @@ void volloop() {
   //delay(5);
   LcurState = digitalRead(25);
   RcurState = digitalRead(32);
-  if (LcurState == HIGH && RcurState == HIGH) {
+  if (LcurState == HIGH && RcurState == HIGH || LcurState == LOW && RcurState == LOW) {
     Volume += 1;
-  } else if (LcurState == HIGH && RcurState == LOW) {
+  } else if (LcurState == HIGH && RcurState == LOW || LcurState == LOW && RcurState == HIGH) {
     Volume -= 1;
   }
   //LprevState = LcurState;
