@@ -31,8 +31,16 @@ object BluetoothConnection {
         return btAdapter != null
     }
 
+    fun isBluetoothEnabled() : Boolean {
+        return btAdapter!!.isEnabled
+    }
+
     fun enableBluetooth() : Boolean {
         return btAdapter!!.enable()
+    }
+
+    fun disableBluetooth() : Boolean {
+        return btAdapter!!.disable()
     }
 
     fun init() {
@@ -42,29 +50,38 @@ object BluetoothConnection {
     fun startCommunication() : Flow<Command> = flow {
         withContext(IO) {
             delay(500)
+            println("Monitoring bluetooth channel active!")
             while (connectedWithESP) {
                 if (connectedWithESP && pendingCommands.size > 16) {
                     // no responses received for the commands, exiting loop to prevent overflow
+                    println("${pendingCommands.size} commands backed up... exiting")
                     pendingCommands.clear()
                     break
                 }
                 if (connectedWithESP && btInputStream!!.available() > 0) {
                     // there is at least 1 response or log available
-                    val buffer = btInputStream!!.readBytes()
+                    val buffer = try {
+                        btInputStream!!.readBytes()
+                    } catch (e : IOException) {
+                        if (connectedWithESP) {
+                            println("Unexpected IO error in the bluetooth channels... exiting")
+                        }
+                        break
+                    }
                     //TODO : check the rest of the buffer if it contains anything other then the log message
                     if (buffer[0] == Command.LOG) {
                         // command is een log
                         println("TODO: Received a Log")
                     } else {
                         // see which command from the requested commands got its answer
-                        val requestedCommand : Command? = pendingCommands.first { it.responseCode == buffer[0] }
+                        val requestedCommand : Command? = pendingCommands.firstOrNull { it.responseCode == buffer[0] }
                         if (requestedCommand == null) {
                             println("Error: received unexpected response code ${buffer[0]}")
                         } else {
                             // TODO : decrease the buffer if necessary, so the other parts can be
                             // TODO : checked for other command responses as well
                             requestedCommand.response = buffer
-                            emit(requestedCommand)
+                            emit(requestedCommand!!)
                             if (pendingCommands.indexOf(requestedCommand) >= currentCommandIndex) {
                                 --currentCommandIndex
                             }
@@ -72,12 +89,13 @@ object BluetoothConnection {
                         }
                     }
                 }
-                if (connectedWithESP && pendingCommands.size > currentCommandIndex + 1) {
+                if (connectedWithESP && pendingCommands.size >= currentCommandIndex + 1) {
                     // send 1 command
                     if (pendingCommands[currentCommandIndex].instruction == Command.DISCONNECT) {
                         btOutputStream!!.write(pendingCommands[currentCommandIndex].fullArray)
                         delay(100)
                         println("Disconnecting...")
+                        connectedWithESP = false
                         btBroadcast!!.close()
                         break
                     } else {
@@ -88,6 +106,7 @@ object BluetoothConnection {
                 delay(100)
             }
         }
+        println("Exiting bluetooth monitoring...")
     }
 
     private suspend fun connectWithESP32() : Boolean {
@@ -95,7 +114,7 @@ object BluetoothConnection {
             if (!connectedWithESP) {
                 // TODO : make it so the user can select a device from a list of available devices
                 // TODO : if the ESP32 cannot be detected
-                val esp32: BluetoothDevice? = btAdapter!!.bondedDevices.first { it.address == MAC_ADDRESS || it.name == "DAB_RADIO" }
+                val esp32: BluetoothDevice? = btAdapter!!.bondedDevices.firstOrNull { it.address == MAC_ADDRESS || it.name == "DAB_RADIO" }
                 connectedWithESP = if (esp32 == null) {
                     false
                 } else {
@@ -105,8 +124,8 @@ object BluetoothConnection {
                             btBroadcast!!.connect()
                             btInputStream = btBroadcast!!.inputStream
                             btOutputStream = btBroadcast!!.outputStream
-                            send(Command.CONNECT)
                             pendingCommands.clear()
+                            send(Command.CONNECT)
                             true
                         } catch (e: IOException) {
                             e.printStackTrace()
@@ -116,6 +135,7 @@ object BluetoothConnection {
                         false
                     }
                 }
+                println("STATUS : $connectedWithESP")
                 connectedWithESP
             } else {
                 true
@@ -126,7 +146,7 @@ object BluetoothConnection {
     fun disconnect() {
         if (connectedWithESP) {
             send(Command.DISCONNECT)
-            connectedWithESP = false
+            //connectedWithESP = false
         }
     }
 
