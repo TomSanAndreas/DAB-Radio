@@ -36,9 +36,11 @@ void loop() {
     lcd.print("Volume ");
     //volcheck();
     lcd.print(Volume);
+    /*
     delay(1000);
     lcd.clear();
     lcd.print(kannaal[channelcounter]);
+    */
     lcd.setCursor(0, 1);
     lcd.print(song);
     afterVolInterrupt = false;
@@ -53,7 +55,7 @@ void volume() {
 
 
 void volloop() {
-  delay(5);
+  //delay(5);
   LcurState = digitalRead(25);
   RcurState = digitalRead(32);
   if (LcurState == HIGH && RcurState == HIGH) {
