@@ -3,13 +3,28 @@
 #include <si46xx.h>
 #include <rom00_patch_016.h>
 
+typedef struct Component {
+    uint32_t component_id; // gebruikt om digital service te starten
+} Component;
+
+typedef struct Service {
+    uint32_t service_id; // ID van de service, gebruikt om digital service te starten
+    char service_label[17]; // naam van het kanaal
+    uint8_t nComponenten; // aantal componenten die het kanaal bevat
+    Component* componenten; // pointer naar het eerste component
+} Service;
+
 class Receiver {
     private:
         int addr;
+        int nServices = 0; // aantal beschikbare services
+        Service* services = nullptr; // pointer naar de eerste service
+
         int readStatus(int, bool);
         void waitForCTS();
         void waitForTuningComplete();
         void initDab();
+        void startDigitalService(int, int); // serviceIndex (in de lijst bekende services), componentIndex
     public:
         Receiver(int addr, int resetpin);
         int sendPatch();
@@ -342,45 +357,87 @@ void Receiver::initDab() {
 
     Wire.read(); // bevat de lijst versie, wordt momenteel geen rekening mee gehouden
     Wire.read(); // 2e byte van de lijst versie
-    uint8_t nServices = Wire.read(); // aantal services die in de lijst te lezen zijn
+    nServices = Wire.read(); // aantal services die in de lijst te lezen zijn
     // uint8_t nServices = buffer[8]; // 2 reads, +6 wegens de voorgaande informatie die de lengte en de originele header bevat
     Serial.print("[DEBUG] Er zijn ");
     Serial.print(nServices);
     Serial.println(" services gevonden!");
     Wire.read(); Wire.read(); Wire.read(); // 3 'reserved for future use' bytes
-    char serviceNames[17][nServices];
+    services = (Service*) malloc(nServices * sizeof(Service));
     for (uint8_t j = 0; j < nServices; j++) {
-        Wire.read(); Wire.read(); Wire.read(); Wire.read(); 
+        Service currentService;
+        // Wire.read(); Wire.read(); Wire.read(); Wire.read(); // serviceID, wordt nu gebruikt hieronder
+        currentService.service_id = Wire.read(); // service ID eerste byte
+        currentService.service_id |= Wire.read() << 8; // service ID tweede byte
+        currentService.service_id |= Wire.read() << 16; // service ID derde byte
+        currentService.service_id |= Wire.read() << 24; // service ID vierde byte
         Wire.read(); // bevat overige informatie zoals service type die nu niet wordt gebruikt
-        uint8_t nComponenten = Wire.read() & 0x0F; // bevat nog meer informatie die niet wordt gebruikt, enkel het aantal componenten per service is belangrijk
+        currentService.nComponenten = Wire.read() & 0x0F; // bevat nog meer informatie die niet wordt gebruikt, enkel het aantal componenten per service is belangrijk
+        currentService.componenten = (Component*) malloc(currentService.nComponenten * sizeof(Component));
         Wire.read(); // bevat informatie rond charset, wordt nu nog genegeerd
         Wire.read(); // align pad (bevat geen informatie)
         // char serviceName[17];
         for (uint8_t i = 0; i < 16; i++) {
             uint8_t currentChar = Wire.read();
             if (currentChar != 0xFF) {
-                serviceNames[j][i] = currentChar;
+                currentService.service_label[i] = currentChar;
             } else {
-                serviceNames[j][i] = '\0';
+                currentService.service_label[i] = '\0';
                 break;
             }
             // Serial.print(" 0x");
             // Serial.print(currentChar, HEX);
         }
         // Serial.println("\n---");
-        serviceNames[j][16] = '\0'; // string beëindigen
+        currentService.service_label[16] = '\0'; // string beëindigen
         // serviceNames[j] = serviceName;
         // Serial.println(serviceName);
-        for (uint8_t i = 0; i < nComponenten; i++) {
-            Wire.read(); Wire.read(); // 2 bytes voor component ID, wordt nu niet gebruikt
+        for (uint8_t i = 0; i < currentService.nComponenten; i++) {
+            //Wire.read(); Wire.read(); // 2 bytes voor component ID, wordt nu niet gebruikt
+            currentService.componenten[i].component_id = Wire.read(); // eerste byte van component ID
+            currentService.componenten[i].component_id |= Wire.read() << 8; // tweede byte van component ID
             Wire.read(); // component info, wordt nu niet gebruikt
             Wire.read(); // extra vlaggen, wordt nu niet gebruikt
         }
+        services[j] = currentService;
     }
+    // voor debugging, uitprinten van huidige gegevens:
     // for (uint8_t i = 0; i < nServices; i++) {
-    //     Serial.println(serviceNames[i]);
+    //     Serial.println(services[i].service_label);
+    //     Serial.println(services[i].service_id, HEX);
+    //     Serial.println("Componenten:");
+    //     for (uint8_t j = 0; j < services[i].nComponenten; j++) {
+    //         Serial.println(services[i].componenten[i].component_id, HEX);
+    //     }
+    //     Serial.println("---");
     // }
-    Serial.println(serviceNames[0]);
+
+    // vanaf nu zijn de gegevens binnenin de receiver class klaar om over bluetooth te sturen
+    // digitale service automatisch starten
+    waitForCTS();
+    startDigitalService(0); // automatisch de eerste service starten
+}
+
+void Receiver::startDigitalService(int serviceIndex, int componentIndex = 0) {
+    uint8_t sequence[12];
+    sequence[0] = SI46XX_DAB_START_DIGITAL_SERVICE;
+    sequence[1] = 0;
+    sequence[2] = 0;
+    sequence[3] = 0;
+    sequence[4] = services[serviceIndex].service_id & 0xFF;
+    sequence[5] = (services[serviceIndex].service_id >> 8) & 0xFF;
+    sequence[6] = (services[serviceIndex].service_id >> 16) & 0xFF;
+    sequence[7] = (services[serviceIndex].service_id >> 24) & 0xFF;
+    sequence[8] = services[serviceIndex].componenten[componentIndex].component_id & 0xFF;
+    sequence[9] = (services[serviceIndex].componenten[componentIndex].component_id >> 8)& 0xFF;
+    sequence[10] = (services[serviceIndex].componenten[componentIndex].component_id >> 16)& 0xFF;
+    sequence[11] = (services[serviceIndex].componenten[componentIndex].component_id >> 24)& 0xFF;
+
+    Wire.beginTransmission(addr);
+    Wire.write(sequence, 12);
+    Wire.endTransmission();
+    delay(40);
+    waitForCTS();
 }
 
 void Receiver::waitForCTS() {
