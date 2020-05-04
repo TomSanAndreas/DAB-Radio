@@ -22,6 +22,7 @@ void setup() {
   pinMode(32, INPUT);
   attachInterrupt(digitalPinToInterrupt(32), volume, CHANGE);
   pinMode(25, INPUT);
+  //attachInterrupt(digitalPinToInterrupt(25), volume, CHANGE);
   delay(2000);
   lcd.clear();
   lcd.print(kannaal[channelcounter]);
@@ -33,12 +34,11 @@ void loop() {
   if (afterVolInterrupt) {
     lcd.clear();
     lcd.print("Volume ");
-    volcheck();
+    //volcheck();
     lcd.print(Volume);
     delay(1000);
     lcd.clear();
     lcd.print(kannaal[channelcounter]);
-    lcd.print(Volume);
     lcd.setCursor(0, 1);
     lcd.print(song);
     afterVolInterrupt = false;
@@ -46,26 +46,25 @@ void loop() {
 }
 
 void volume() {
-  //for (int i = 0 ; i < 100; i++) {
     volloop();
-  //}
   afterVolInterrupt = true;
 }
 
 
 
 void volloop() {
-  LcurState = digitalRead(32);
-  RcurState = digitalRead(25);
-  if (LcurState == HIGH && RcurState == HIGH && LprevState == HIGH && RprevState == LOW) {
-    Volume -= 2;
-  } else if (LcurState == HIGH && RcurState == HIGH && LprevState == LOW && RprevState == HIGH) {
-    Volume += 2;
-  } else {
+  delay(5);
+  LcurState = digitalRead(25);
+  RcurState = digitalRead(32);
+  if (LcurState == HIGH && RcurState == HIGH) {
+    Volume += 1;
+  } else if (LcurState == HIGH && RcurState == LOW) {
+    Volume -= 1;
   }
-  LprevState = LcurState;
-  RprevState = RcurState;
+  //LprevState = LcurState;
+  //RprevState = RcurState;
 }
+
 
 
 
