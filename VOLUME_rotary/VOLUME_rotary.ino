@@ -1,18 +1,16 @@
-
-
 #include <LiquidCrystal.h>
 
 // initialize the library with the numbers of the interface pins
 LiquidCrystal lcd(22, 23, 5, 18, 19, 21);
 
-uint8_t Volume = 25;
+uint8_t Volume = 24;
 uint8_t LprevState = 0;
 uint8_t LcurState = 0;
 uint8_t RprevState = 0;
 uint8_t RcurState = 0;
-uint8_t channelcounter = 7;
+uint8_t channelcounter = 5;
 char kannaal[8][15] = { "STUBRU", "QMusic", "Joe", "KLARA", "Radio Maria", "MNM", "Nostalgie", "HitFM" };
-String song = "Don't stop me now - Queen";
+String song = "The Strokes - The Adults Are Talking";
 bool afterVolInterrupt = false;
 
 
@@ -24,23 +22,22 @@ void setup() {
   delay(2000);
   lcd.clear();
   lcd.print(kannaal[channelcounter]);
-  lcd.setCursor(0, 1);
+  lcd.print(" ");
   lcd.print(song);
+  lcd.setCursor(0, 1);
+  lcd.print("Volume ");
+  lcd.print(Volume);
   attachInterrupt(digitalPinToInterrupt(32), volume, CHANGE);
   //attachInterrupt(digitalPinToInterrupt(25), volume, RISING);
 }
 
 void loop() {
   if (afterVolInterrupt) {
-    lcd.clear();
+    lcd.setCursor(7, 1);
     //lcd.print("Volume ");
     //volcheck();
     lcd.print(Volume);
-    /*
-      delay(1000);
-      lcd.clear();
-      lcd.print(kannaal[channelcounter]);
-    */
+    lcd.print("  ");
     //lcd.setCursor(0, 1);
     //lcd.print(song);
     afterVolInterrupt = false;
@@ -50,6 +47,7 @@ void loop() {
 void volume() {
   if (!afterVolInterrupt) {
     volloop();
+    volcheck();
     afterVolInterrupt = true;
   }
 }
@@ -74,9 +72,9 @@ void volloop() {
 
 
 void volcheck() {
-  if (Volume < 0) {
+  if (Volume < 0 || Volume > 210) {
     Volume = 0;
-  } else if (Volume > 50) {
-    Volume = 50;
+  } else if (Volume > 200) {
+    Volume = 200;
   }
 }
